@@ -10,7 +10,7 @@ Dự án này là mã nguồn phục vụ cho **Đồ án 2**, tập trung vào 
 ## 👥 Thông tin sinh viên thực hiện
 * **Họ và tên:** Phan Trịnh Quốc Bảo
 * **Mã số sinh viên:** 222693
-* **Lớp / Khóa:** DH22TIN03
+* **Lớp:** DH22TIN03
 * **Giảng viên hướng dẫn:** Trần Văn Thiện
 
 ## 🛠 Công nghệ & Nền tảng
