@@ -53,9 +53,12 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
    
 ### Bước 2: Khởi động hệ thống
 Bạn có thể chọn một trong hai cách sau:
+
 Cách 1(Khuyến nghị): Nhấp đúp chuột vào file CHAY_DO_AN.bat. Hệ thống sẽ tự động mở đồng thời Backend, Frontend và trình duyệt web.
+
 Cách 2(Thủ công): Mở 2 Terminal và chạy các lệnh:
 Terminal 1: uvicorn backend.api:app --reload
+
 Terminal 2: streamlit run frontend/app.py
 
 ### Bước 3: Trải nghiệm và Sử dụng ứng dụng
