@@ -40,6 +40,33 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
 
 ---
 
+## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
+
+### Bước 1: Chuẩn bị môi trường
+1. Clone dự án về máy tính hoặc tải file Zip và giải nén.
+2. Mở Terminal tại thư mục gốc của dự án (`D:\Do_An_2`).
+3. Tạo và kích hoạt môi trường ảo:
+   ```bash
+   python -m venv .venv
+   .\.venv\Scripts\activate
+   Cài đặt các thư viện cần thiết: pip install fastapi uvicorn streamlit plotly yfinance pandas numpy scikit-learn tensorflow joblib
+   
+### Bước 2: Khởi động hệ thống
+Bạn có thể chọn một trong hai cách sau:
+Cách 1(Khuyến nghị): Nhấp đúp chuột vào file CHAY_DO_AN.bat. Hệ thống sẽ tự động mở đồng thời Backend, Frontend và trình duyệt web.
+Cách 2(Thủ công): Mở 2 Terminal và chạy các lệnh:
+Terminal 1: uvicorn backend.api:app --reload
+Terminal 2: streamlit run frontend/app.py
+
+### Bước 3: Trải nghiệm và Sử dụng ứng dụng
+Sau khi ứng dụng khởi chạy thành công, trình duyệt sẽ mở địa chỉ http://localhost:8501. Người dùng thực hiện các bước sau:
+1. Chọn mã cổ phiếu: Tại thanh Menu bên trái, chọn các mã chứng khoán thuộc nhóm VN30 (VD: FPT, VCB, HPG, VIC...).
+2. Theo dõi biểu đồ: Hệ thống tự động tải dữ liệu lịch sử và vẽ biểu đồ nến (Candlestick) tương tác. Bạn có thể phóng to, thu nhỏ hoặc di chuyển chuột để xem giá trị tại từng thời điểm.
+3. Thực hiện dự báo: Nhấn nút "Bắt đầu dự báo".
+  . Backend sẽ xử lý dữ liệu qua mô hình LSTM.
+  . Kết quả dự báo giá đóng cửa của phiên tiếp theo sẽ hiển thị ngay dưới biểu đồ kèm theo các chỉ số kỹ thuật liên quan.
+4. Phân tích kết quả: AI cung cấp cái nhìn khách quan về xu hướng giá dựa trên dữ liệu quá khứ, giúp nhà đầu tư có thêm cơ sở tham khảo.
+
 ## 📂 Cấu Trúc Thư Mục
 ```text
 DO_AN_2/
@@ -55,3 +82,4 @@ DO_AN_2/
 ├── scaler.pkl                # Bộ chuẩn hóa dữ liệu
 ├── CHAY_DO_AN.bat            # Script khởi động nhanh cho Windows
 └── README.md                 # Hướng dẫn sử dụng
+
