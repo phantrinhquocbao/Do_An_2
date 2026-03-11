@@ -1,79 +1,93 @@
 from fastapi import FastAPI
-import yfinance as yf
 import numpy as np
 import pandas as pd
 from tensorflow.keras.models import load_model
 import joblib
 import uvicorn
 import os
+import yfinance as yf
+from vnstock import stock_historical_data
+from datetime import datetime, timedelta
 
 app = FastAPI()
 
-# Khởi tạo mô hình và bộ chuẩn hóa
-# 1. Lấy vị trí chính xác của thư mục 'backend' (nơi đang chứa file api.py)
+# Thêm dòng này vào api.py để có thể gọi từ web
+@app.get("/update")
+def trigger_update():
+    try:
+        from cap_nhat_model import cap_nhat_chinh
+        cap_nhat_chinh()
+        return {"status": "success"}
+    except Exception as e:
+        return {"error": str(e)}
+
+# 1. Khởi tạo đường dẫn
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# 2. Ghép đường dẫn đó với tên file AI của ông
 MODEL_PATH = os.path.join(BASE_DIR, "lstm_vn30_model.h5")
-
-# 3. Load mô hình bằng cái đường dẫn xịn vừa tạo
-model = load_model(MODEL_PATH)
-# Gọi thước đo ra để xài
 SCALER_PATH = os.path.join(BASE_DIR, "scaler.pkl")
+
+# 2. Tải não bộ và phễu lọc
+model = load_model(MODEL_PATH)
 scaler = joblib.load(SCALER_PATH)
+
+# Cấu hình 6 cột chuẩn xác với mô hình đã train
+FEATURES = ['Open_VN', 'High_VN', 'Low_VN', 'Close_VN', 'Volume_VN', 'Close_US']
+TARGET_INDEX = 3 # Vị trí cột Close_VN
+
+# ... (Phần đầu giữ nguyên) ...
 
 @app.get("/predict/{ticker}")
 def predict_stock(ticker: str):
     try:
-        # Tải dữ liệu 6 tháng gần nhất
-        stock_vn = yf.Ticker(f"{ticker}.VN")
-        stock_us = yf.Ticker("^GSPC")
+        # Tăng lên 150 ngày để đảm bảo sau khi gộp vẫn đủ 60 ngày giao dịch
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=150)).strftime('%Y-%m-%d')
+
+        print(f"🔄 Đang lấy dữ liệu từ {start_date} đến {end_date}...")
+
+        # 1. Tải chứng khoán VN
+        df_vn = stock_historical_data(symbol=ticker.upper(), start_date=start_date, end_date=end_date, resolution='1D', type='stock')
         
-        df_vn = stock_vn.history(period="6mo")
-        df_us = stock_us.history(period="6mo")
-
+        # ... (Phần còn lại y hệt như cũ) ...
         if df_vn.empty:
-            return {"error": "Không tìm thấy dữ liệu cho mã cổ phiếu này."}
+            return {"error": f"Không tìm thấy dữ liệu vnstock cho mã {ticker}."}
 
-        df_vn.index = df_vn.index.tz_localize(None)
-        df_us.index = df_us.index.tz_localize(None)
+        df_vn = df_vn[['time', 'open', 'high', 'low', 'close', 'volume']]
+        df_vn.columns = ['Date', 'Open_VN', 'High_VN', 'Low_VN', 'Close_VN', 'Volume_VN']
+        df_vn['Date'] = pd.to_datetime(df_vn['Date'])
 
-        df = pd.DataFrame({
-            'Close_VN': df_vn['Close'],
-            'Volume_VN': df_vn['Volume'],
-            'Close_US': df_us['Close']
-        })
+        # 2. Tải S&P 500 bằng yfinance
+        df_us = yf.download('^GSPC', start=start_date, end=end_date, progress=False)
+        if isinstance(df_us.columns, pd.MultiIndex):
+            df_us = df_us['Close'].reset_index()
+        else:
+            df_us = df_us[['Close']].reset_index()
+        df_us.columns = ['Date', 'Close_US']
+        df_us['Date'] = pd.to_datetime(df_us['Date']).dt.tz_localize(None)
 
-        # Tính toán chỉ báo kỹ thuật
-        delta = df['Close_VN'].diff()
-        gain = delta.where(delta > 0, 0)
-        loss = -delta.where(delta < 0, 0)
-        rs = gain.ewm(com=13, min_periods=14).mean() / loss.ewm(com=13, min_periods=14).mean()
-        df['RSI_14'] = 100 - (100 / (1 + rs))
+        # 3. Gộp bảng và điền khuyết
+        df = pd.merge(df_vn, df_us, on='Date', how='inner').ffill()
 
-        df['MACD'] = df['Close_VN'].ewm(span=12, adjust=False).mean() - df['Close_VN'].ewm(span=26, adjust=False).mean()
-        df.dropna(inplace=True)
+        if len(df) < 60:
+            return {"error": "Chưa đủ dữ liệu 60 ngày giao dịch để dự báo."}
 
-        feature_cols = ['Close_VN', 'Volume_VN', 'Close_US', 'RSI_14', 'MACD']
-        dataset = df[feature_cols].values
+        # 4. Lọc đúng 6 cột
+        dataset = df[FEATURES].values
 
-        # Xử lý dự báo
+        # 5. Xử lý dự báo
         scaled_data = scaler.transform(dataset) 
         last_60_days = scaled_data[-60:]
         
-        if len(last_60_days) < 60:
-             return {"error": "Chưa đủ dữ liệu 60 ngày để thực hiện dự báo."}
-             
         X_input = np.array([last_60_days])
         predicted_scaled = model.predict(X_input)
 
-        # Chuyển đổi giá trị dự báo về đơn vị VNĐ
-        dummy_array = np.zeros((1, 5))
-        dummy_array[0, 0] = predicted_scaled[0][0]
-        predicted_price = scaler.inverse_transform(dummy_array)[0, 0]
+        # 6. Chuyển đổi giá trị dự báo về VNĐ (Trả lại hình dáng 6 cột cho scaler)
+        dummy_array = np.zeros((1, len(FEATURES)))
+        dummy_array[0, TARGET_INDEX] = predicted_scaled[0][0]
+        predicted_price = scaler.inverse_transform(dummy_array)[0, TARGET_INDEX]
 
         return {
-            "ticker": ticker,
+            "ticker": ticker.upper(),
             "predicted_price_vnd": float(predicted_price)
         }
     except Exception as e:

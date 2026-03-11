@@ -1,28 +1,17 @@
 @echo off
-title HE THONG DU BAO VN30 - BAO
-color 0A
+title He Thong Du Bao HPG - Phan Trinh Quoc Bao
+color 0B
 
-cd /d D:\Do_An_2
+echo 🚀 1. Dang khoi dong Backend (FastAPI)...
+:: Mo cua so moi chay API
+start cmd /k "cd /d D:\Do_An_2\backend && ..\.venv\Scripts\activate && python api.py"
 
-echo ==========================================
-echo    DANG KHOI DONG HE THONG (VUI LONG DOI)
-echo ==========================================
+echo ⏳ Dang doi 5 giay cho Backend on dinh...
+timeout /t 5
 
-echo.
-echo 1. Dang mo Backend (FastAPI)...
-start "BACKEND" cmd /k "cd backend && ..\.venv\Scripts\python.exe -m uvicorn api:app --reload"
+echo 🎨 2. Dang khoi dong Giao dien Streamlit...
+cd /d D:\Do_An_2\frontend
+:: Quan trong: File cua fen ten la app.py nhe!
+..\.venv\Scripts\activate && streamlit run app.py
 
-:: Doi Backend khoi dong 3 giay
-timeout /t 3
-
-echo.
-echo 2. Dang mo Frontend (Streamlit)...
-start "FRONTEND" cmd /k "cd frontend && ..\.venv\Scripts\python.exe -m streamlit run app.py"
-
-:: Doi Frontend khoi dong 4 giay roi ep mo Chrome
-timeout /t 4
-start http://localhost:8501
-
-echo.
-echo XONG! Dang ep mo trinh duyet...
 pause
