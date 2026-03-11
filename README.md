@@ -71,7 +71,6 @@ Sau khi ứng dụng khởi chạy thành công, trình duyệt sẽ mở địa
 4. Phân tích kết quả: AI cung cấp cái nhìn khách quan về xu hướng giá dựa trên dữ liệu quá khứ, giúp nhà đầu tư có thêm cơ sở tham khảo.
 
 ## 📂 Cấu Trúc Thư Mục
-## 📂 Cấu Trúc Thư Mục
 
 ```text
 DO_AN_2/
