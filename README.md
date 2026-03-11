@@ -17,7 +17,7 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
 - **Mô hình Trí tuệ nhân tạo (AI):** TensorFlow / Keras (LSTM)
 - **Backend (API Server):** FastAPI, Uvicorn
 - **Frontend (Giao diện người dùng):** Streamlit, Plotly (Vẽ biểu đồ nến tương tác)
-- **Xử lý Dữ liệu:** Pandas, NumPy, Scikit-learn, yfinance, Joblib
+- **Xử lý Dữ liệu:** Pandas, NumPy, Scikit-learn, Vnstock, Joblib
 
 ---
 
@@ -33,7 +33,7 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
 
 ### 3. Luồng Xử Lý Dữ Liệu (Data Flow)
 1. **Frontend:** Nhận yêu cầu mã cổ phiếu từ người dùng.
-2. **Backend:** Tự động lấy dữ liệu thời gian thực qua thư viện `yfinance`.
+2. **Backend:** Tự động lấy dữ liệu thời gian thực qua thư viện `vnstock`.
 3. **Tiền xử lý:** Sử dụng `scaler.pkl` để chuẩn hóa dữ liệu đầu vào.
 4. **Dự báo:** Đưa dữ liệu qua mô hình `LSTM` để tính toán giá trị dự báo.
 5. **Hiển thị:** Dịch ngược giá trị về VNĐ và vẽ biểu đồ tương tác qua `Plotly`.
@@ -49,7 +49,7 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
    ```bash
    python -m venv .venv
    .\.venv\Scripts\activate
-   Cài đặt các thư viện cần thiết: pip install fastapi uvicorn streamlit plotly yfinance pandas numpy scikit-learn tensorflow joblib
+   Cài đặt các thư viện cần thiết: pip install fastapi uvicorn streamlit plotly vnstock pandas numpy scikit-learn==1.6.1 tensorflow joblib
    
 ### Bước 2: Khởi động hệ thống
 Bạn có thể chọn một trong hai cách sau:
@@ -71,18 +71,23 @@ Sau khi ứng dụng khởi chạy thành công, trình duyệt sẽ mở địa
 4. Phân tích kết quả: AI cung cấp cái nhìn khách quan về xu hướng giá dựa trên dữ liệu quá khứ, giúp nhà đầu tư có thêm cơ sở tham khảo.
 
 ## 📂 Cấu Trúc Thư Mục
+## 📂 Cấu Trúc Thư Mục
+
 ```text
 DO_AN_2/
 │
-├── backend/                  # Mã nguồn Server (FastAPI)
-│   └── api.py                # Xử lý logic API và gọi mô hình AI
+├── backend/                  # Chứa mã nguồn Server và Mô hình AI
+│   ├── api.py                # Xử lý logic API, gọi mô hình AI (FastAPI)
+│   ├── cap_nhat_model.py     # Script hỗ trợ cập nhật/huấn luyện lại mô hình LSTM
+│   ├── code lstm.docx        # Tài liệu/Source code tham khảo về quá trình train LSTM
+│   ├── lstm_vn30_model.h5    # Mô hình LSTM đã được huấn luyện
+│   └── scaler.pkl            # Bộ chuẩn hóa dữ liệu đầu vào/đầu ra
 │
-├── frontend/                 # Mã nguồn Giao diện (Streamlit)
-│   └── app.py                # Hiển thị biểu đồ và tương tác người dùng
+├── frontend/                 # Chứa mã nguồn Giao diện người dùng
+│   └── app.py                # Xử lý giao diện Web và biểu đồ (Streamlit)
 │
-├── .venv/                    # Môi trường ảo Python (Không đẩy lên GitHub)
-├── lstm_vn30_model.h5        # Mô hình LSTM đã huấn luyện
-├── scaler.pkl                # Bộ chuẩn hóa dữ liệu
-├── CHAY_DO_AN.bat            # Script khởi động nhanh cho Windows
-└── README.md                 # Hướng dẫn sử dụng
+├── .venv/                    # Môi trường ảo Python (Được bỏ qua khi đẩy lên GitHub)
+├── .gitignore                # Khai báo các file/thư mục không đẩy lên Git
+├── CHAY_DO_AN.bat            # Script Batch khởi động nhanh cả hệ thống trên Windows
+├── mục tiêu.docx             # Tài liệu ghi chú mục tiêu và yêu cầu của đồ án
 
