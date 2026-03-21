@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+streamlit
+plotly
+vnstock
+yfinance
+pandas
+numpy
+scikit-learn==1.6.1
+tensorflow
+joblib
+requests

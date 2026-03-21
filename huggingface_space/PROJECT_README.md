@@ -42,51 +42,26 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
 
 ## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
 
-### Bước 1: Tải dự án
+### Bước 1: Chuẩn bị môi trường
 1. Clone dự án về máy tính hoặc tải file Zip và giải nén.
 2. Mở Terminal tại thư mục gốc của dự án.
-
-### Bước 2: Chạy bằng 1 lệnh
-Bạn có thể chọn một trong ba cách sau:
-
-Cách 1 (Online - Không cần cài đặt): Mở trình duyệt và truy cập:
-
-`https://quocbao1308-do-an-2.hf.space/`
-
-Cách 2 (Windows local - 1 lệnh): Chạy file batch sau. Script sẽ tự tạo `.venv`, cài thư viện và khởi động hệ thống:
-
-```bat
-CHAY_DO_AN.bat
-```
-
-Cách 3 (Python local - 1 lệnh): Nếu máy đã có Python, dùng:
-
-```bash
-python run_do_an.py
-```
-
-Cách 4 (Docker - 1 lệnh): Nếu máy đã có Docker Desktop:
-
-```bash
-docker compose up --build
-```
-
-Frontend sẽ mở tại `http://localhost:8501`, backend tại `http://localhost:8000`.
-
-### Bước 3: Chạy thủ công nếu cần
-1. Tạo môi trường ảo:
+3. Tạo và kích hoạt môi trường ảo (Virtual Environment):
    ```bash
    python -m venv .venv
    .\.venv\Scripts\activate
-   ```
-2. Cài thư viện:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Chạy hệ thống:
-   ```bash
-   python run_do_an.py
-   ```
+4. Cài đặt các thư viện cần thiết:
+  pip install fastapi uvicorn streamlit plotly vnstock yfinance pandas numpy scikit-learn==1.6.1 tensorflow joblib
+
+### Bước 2: Khởi động hệ thống
+Bạn có thể chọn một trong hai cách sau:
+
+Cách 1 (Khuyến nghị): Nhấp đúp chuột vào file CHAY_DO_AN.bat. Hệ thống sẽ tự động mở đồng thời Backend, Frontend và trình duyệt web.
+
+Cách 2 (Thủ công): Mở 2 Terminal độc lập và chạy các lệnh sau:
+
+Terminal 1 (Backend): uvicorn backend.api:app --reload
+
+Terminal 2 (Frontend): streamlit run frontend/app.py
 
 ### Bước 3: Trải nghiệm và Sử dụng ứng dụng
 Sau khi ứng dụng khởi chạy thành công, trình duyệt sẽ tự động điều hướng tới http://localhost:8501. Người dùng có thể trải nghiệm 5 phân hệ chức năng:

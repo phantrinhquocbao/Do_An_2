@@ -1,17 +1,36 @@
 @echo off
-title He Thong Du Bao HPG - Phan Trinh Quoc Bao
+setlocal
+title DO_AN_2 - Phan Trinh Quoc Bao
 color 0B
 
-echo 🚀 1. Dang khoi dong Backend (FastAPI)...
-:: Mo cua so moi chay API
-start cmd /k "cd /d D:\Do_An_2\backend && ..\.venv\Scripts\activate && python api.py"
+cd /d "%~dp0"
 
-echo ⏳ Dang doi 5 giay cho Backend on dinh...
-timeout /t 5
+if not exist ".venv\Scripts\python.exe" (
+    echo [1/3] Dang tao moi truong ao...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo Khong tao duoc .venv. Hay kiem tra Python da cai va co trong PATH.
+        pause
+        exit /b 1
+    )
+)
 
-echo 🎨 2. Dang khoi dong Giao dien Streamlit...
-cd /d D:\Do_An_2\frontend
-:: Quan trong: File cua fen ten la app.py nhe!
-..\.venv\Scripts\activate && streamlit run app.py
+echo [2/3] Dang cai thu vien can thiet...
+".venv\Scripts\python.exe" -m pip install --upgrade pip
+if errorlevel 1 (
+    echo Khong the nang cap pip.
+    pause
+    exit /b 1
+)
 
-pause
+".venv\Scripts\python.exe" -m pip install -r requirements.txt
+if errorlevel 1 (
+    echo Khong the cai dat thu vien tu requirements.txt.
+    pause
+    exit /b 1
+)
+
+echo [3/3] Dang khoi dong he thong...
+".venv\Scripts\python.exe" run_do_an.py
+
+endlocal

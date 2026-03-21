@@ -1,0 +1,11 @@
+__pycache__/
+backend/__pycache__/
+frontend/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+.vscode/
+backend/.vscode/
+.venv/

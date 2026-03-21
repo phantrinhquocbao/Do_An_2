@@ -1,0 +1,9 @@
+services:
+  do_an_2:
+    build: .
+    container_name: do_an_2
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    environment:
+      OPEN_BROWSER: "0"
