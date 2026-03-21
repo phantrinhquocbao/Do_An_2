@@ -45,6 +45,13 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
 ### Bước 1: Tải dự án
 1. Clone dự án về máy tính hoặc tải file Zip và giải nén.
 2. Mở Terminal tại thư mục gốc của dự án.
+## Chạy nhanh
+
+```bash
+git clone https://github.com/phantrinhquocbao/Do_An_2.git
+cd Do_An_2
+docker compose up --build
+
 
 ### Bước 2: Chạy bằng 1 lệnh
 Bạn có thể chọn một trong bốn cách sau:
