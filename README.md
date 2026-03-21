@@ -47,7 +47,7 @@ Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại
 2. Mở Terminal tại thư mục gốc của dự án.
 
 ### Bước 2: Chạy bằng 1 lệnh
-Bạn có thể chọn một trong ba cách sau:
+Bạn có thể chọn một trong bốn cách sau:
 
 Cách 1 (Online - Không cần cài đặt): Mở trình duyệt và truy cập:
 
@@ -88,7 +88,7 @@ Frontend sẽ mở tại `http://localhost:8501`, backend tại `http://localhos
    python run_do_an.py
    ```
 
-### Bước 3: Trải nghiệm và Sử dụng ứng dụng
+### Bước 4: Trải nghiệm và Sử dụng ứng dụng
 Sau khi ứng dụng khởi chạy thành công, trình duyệt sẽ tự động điều hướng tới http://localhost:8501. Người dùng có thể trải nghiệm 5 phân hệ chức năng:
 
 Tổng quan thị trường: Theo dõi biểu đồ nến Candlestick tương tác.
@@ -102,17 +102,20 @@ So sánh cổ phiếu: Đối chiếu hiệu suất tăng trưởng giữa các 
 Lịch sử dự báo: Xem nhật ký đối soát và sai số MAPE thực tế của hệ thống.
 
 ### 📂 Cấu Trúc Thư Mục
+```text
 DO_AN_2/
-│
 ├── backend/                  # Phía Máy chủ (Xử lý API và AI)
 │   ├── api.py                # Điểm đầu vào FastAPI
 │   ├── lstm_vn30_model.h5    # Trọng số mạng nơ-ron LSTM
 │   └── scaler.pkl            # Bộ tham số chuẩn hóa MinMaxScaler
-│
 ├── frontend/                 # Phía Máy khách (Giao diện)
 │   └── app.py                # Script điều khiển Streamlit & Plotly
-│
-├── .venv/                    # Môi trường ảo (Bỏ qua trên Git)
+├── .venv/                    # Môi trường ảo (bỏ qua trên Git)
 ├── .gitignore                # File cấu hình Git
 ├── CHAY_DO_AN.bat            # Batch script khởi động nhanh trên Windows
+├── Dockerfile                # Đóng gói chạy bằng Docker
+├── docker-compose.yml        # Chạy toàn hệ thống bằng một lệnh Docker
+├── requirements.txt          # Danh sách thư viện Python
+├── run_do_an.py              # Launcher chạy backend + frontend
 └── README.md                 # Tài liệu hướng dẫn dự án
+```
