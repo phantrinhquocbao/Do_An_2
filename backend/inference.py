@@ -20,40 +20,53 @@ TARGET_INDEX = FEATURES.index("Close_VN")
 def load_data(ticker, start_date, end_date):
     """Daily OHLCV with a sorted, timezone-free Date index; end is exclusive.
 
-    Bare Vietnamese symbols use the requested .HM Yahoo suffix. Missing Yahoo
+    Bare Vietnamese symbols use the requested .VN Yahoo suffix. Missing Yahoo
     coverage is an error, never substituted with another market or fake prices.
     """
     symbol = ticker.strip().upper()
     if not symbol:
         raise ValueError("Mã chứng khoán không được để trống.")
     if not symbol.startswith("^") and "." not in symbol:
-        symbol += ".HM"
-    instrument = yf.Ticker(symbol)
-    frame = instrument.history(
-        start=start_date, end=end_date, interval="1d",
+        symbol += ".VN"
+    frame = yf.download(
+        symbol, start=start_date, end=end_date, interval="1d",
         # Keep VN price levels; preserve the old adjusted S&P 500 Close series.
-        auto_adjust=symbol.startswith("^"), actions=False, timeout=20, raise_errors=True,
+        auto_adjust=symbol.startswith("^"), actions=False, timeout=20,
+        progress=False, threads=False, group_by="column", multi_level_index=False,
     )
     if frame is None or frame.empty:
         raise ValueError(f"Yahoo Finance không trả dữ liệu cho {symbol} trong khoảng ngày đã chọn.")
     if not symbol.startswith("^"):
-        currency = instrument.get_history_metadata().get("currency")
+        currency = yf.Ticker(symbol).get_history_metadata().get("currency")
         if currency != "VND":
             raise ValueError(
                 f"Không xác nhận được giá VND cho {symbol} (currency={currency}); "
                 "không đưa giá khác đơn vị vào scaler VN30."
             )
+    return normalize_ohlcv(frame, symbol)
+
+
+def normalize_ohlcv(frame, symbol):
+    """Keep only the five model price inputs, even with Yahoo MultiIndex columns."""
     if isinstance(frame.columns, pd.MultiIndex):
-        if symbol in frame.columns.get_level_values(-1):
-            frame = frame.xs(symbol, axis=1, level=-1)
-        else:
+        ticker_levels = [i for i in range(frame.columns.nlevels)
+                         if symbol in frame.columns.get_level_values(i)]
+        if len(ticker_levels) != 1:
             raise ValueError(f"Cấu trúc cột Yahoo không hợp lệ cho {symbol}.")
+        frame = frame.xs(symbol, axis=1, level=ticker_levels[0])
+    if isinstance(frame.columns, pd.MultiIndex):
+        raise ValueError(f"Cấu trúc cột Yahoo còn nhiều cấp cho {symbol}.")
+    frame = frame.rename(columns={c: str(c).strip().title() for c in frame.columns})
+    if frame.columns.duplicated().any():
+        raise ValueError(f"Dữ liệu {symbol} có cột trùng tên.")
     missing = [column for column in OHLCV if column not in frame.columns]
     if missing:
         raise ValueError(f"Dữ liệu {symbol} thiếu cột: {', '.join(missing)}")
+    # Explicit selection discards Adj Close, Dividends, Stock Splits and extras.
     frame = frame.loc[:, OHLCV].copy()
-    frame.index = pd.to_datetime(frame.index).tz_localize(None).normalize()
+    frame.index = pd.to_datetime(frame.index, errors="coerce").tz_localize(None).normalize()
     frame.index.name = "Date"
+    frame = frame.loc[frame.index.notna()]
     frame = frame.loc[~frame.index.duplicated(keep="last")].sort_index()
     frame = frame.apply(pd.to_numeric, errors="coerce")
     frame = frame.replace([np.inf, -np.inf], np.nan).dropna()
@@ -68,10 +81,24 @@ def load_features(ticker, start_date, end_date):
     vn = load_data(ticker, start_date, end_date).rename(columns=dict(zip(OHLCV, FEATURES[:5])))
     us = load_data("^GSPC", start_date, end_date)[["Close"]].rename(columns={"Close": "Close_US"})
     # Preserve the original inner join by trading date and feature order.
-    features = vn.join(us, how="inner").ffill().dropna().loc[:, FEATURES]
+    features = prepare_features(vn.join(us, how="inner"))
     if len(features) < TIME_STEPS:
         raise ValueError(f"Chỉ có {len(features)} phiên chung VN/S&P 500; cần ít nhất {TIME_STEPS}.")
     return features
+
+
+def prepare_features(frame):
+    """Select exact training names/order and reject incomplete/non-finite rows."""
+    if frame.columns.duplicated().any():
+        raise ValueError("Input model có cột trùng tên.")
+    missing = [name for name in FEATURES if name not in frame.columns]
+    if missing:
+        raise ValueError(f"Input model thiếu cột: {', '.join(missing)}")
+    frame = frame.loc[:, FEATURES].apply(pd.to_numeric, errors="coerce")
+    frame = frame.replace([np.inf, -np.inf], np.nan).dropna()
+    if frame.empty:
+        raise ValueError("Không còn dữ liệu hợp lệ sau chuẩn hóa 6 đặc trưng.")
+    return frame
 
 
 def load_artifacts():
@@ -95,8 +122,12 @@ def load_artifacts():
 
 
 def scale_features(features, scaler):
-    if list(features.columns) != FEATURES:
-        raise ValueError(f"Input phải có đúng thứ tự cột: {FEATURES}")
+    features = prepare_features(features)
+    if getattr(scaler, "n_features_in_", None) != len(FEATURES):
+        raise ValueError("Scaler không khớp 6 đặc trưng của model.")
+    names = getattr(scaler, "feature_names_in_", None)
+    if names is not None and list(names) != FEATURES:
+        raise ValueError(f"Tên/thứ tự cột scaler không khớp: {list(names)}")
     # The saved scaler was fitted on an ndarray; preserve that input contract.
     data = features if hasattr(scaler, "feature_names_in_") else features.to_numpy()
     scaled = scaler.transform(data)
@@ -106,10 +137,12 @@ def scale_features(features, scaler):
 
 
 def predict_price(features, model, scaler):
-    if len(features) < TIME_STEPS:
-        raise ValueError("Không đủ 60 phiên để dự báo.")
     scaled = scale_features(features, scaler)
+    if len(scaled) < TIME_STEPS:
+        raise ValueError("Không đủ 60 phiên hợp lệ sau dropna để dự báo.")
     x_input = np.asarray([scaled[-TIME_STEPS:]], dtype=np.float32)
+    if x_input.shape != (1, TIME_STEPS, len(FEATURES)) or not np.isfinite(x_input).all():
+        raise ValueError("Tensor đầu vào phải hữu hạn và có kích thước (1, 60, 6).")
     output = np.asarray(model(x_input, training=False))
     if output.shape != (1, 1) or not np.isfinite(output).all():
         raise ValueError("Model trả kết quả không hợp lệ.")

@@ -21,8 +21,9 @@ Không cần khởi động FastAPI trên Streamlit Cloud.
 
 ## Hợp đồng dữ liệu
 
-Mã VN không có hậu tố được thêm `.HM` (ví dụ `FPT.HM`); S&P 500 dùng `^GSPC`.
-Tải `Open, High, Low, Close, Volume`; ghép ngày giao dịch chung với S&P 500.
+Mã VN không có hậu tố được thêm `.VN` (ví dụ `FPT.VN`); S&P 500 dùng `^GSPC`.
+Dùng `yfinance.download()`, bỏ cột dư (kể cả `Adj Close`), chuyển số và `dropna()`;
+chỉ giữ `Open, High, Low, Close, Volume`, rồi ghép ngày giao dịch chung với S&P 500.
 Input model giữ đúng 60 phiên x 6 cột theo thứ tự:
 `Open_VN, High_VN, Low_VN, Close_VN, Volume_VN, Close_US`.
 Scaler gốc được fit trên NumPy array; code giữ đúng thứ tự và kiểm tra số đặc trưng.
@@ -31,7 +32,7 @@ Model được nạp bằng Keras với `compile=False`; scaler bằng joblib, �
 
 ## Giới hạn
 
-- Yahoo có thể không cung cấp dữ liệu cho một số hoặc toàn bộ mã `.HM`, hoặc giới hạn lượt tải.
+- Yahoo có thể không cung cấp dữ liệu cho một số hoặc toàn bộ mã `.VN`, hoặc giới hạn lượt tải.
   Khi lỗi, thiếu cột hoặc thiếu 60 phiên chung, giao diện báo lỗi và không tạo dự báo giả.
   Giá VN phải có metadata currency=VND; không dùng mã trùng tên ở thị trường khác.
 - Đổi nhà cung cấp không đảm bảo giá điều chỉnh/đơn vị trùng dữ liệu huấn luyện cũ;
