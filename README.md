@@ -1,128 +1,55 @@
-# 📈 Đồ Án 2: Hệ Thống Web Dự Báo Giá Cổ Phiếu VN30 Bằng Trí Tuệ Nhân Tạo (LSTM)
+# VN30 LSTM — Streamlit Community Cloud
 
-## 📌 Giới Thiệu Đề Tài
-Dự án này là mã nguồn phục vụ cho **Đồ án 2**, tập trung vào việc xây dựng một hệ thống hoàn chỉnh (Full-stack) hỗ trợ nhà đầu tư phân tích và dự báo xu hướng giá cổ phiếu của các mã thuộc nhóm VN30. 
+Giao diện tải dữ liệu Yahoo Finance và chạy LSTM trực tiếp trong tiến trình Streamlit.
+Không cần khởi động FastAPI trên Streamlit Cloud.
 
-Hệ thống triển khai thành một **Ứng dụng Web trực quan** với lõi thuật toán là **Mạng nơ-ron bộ nhớ dài-ngắn (Long Short-Term Memory - LSTM)**. Điểm nổi bật của dự án là việc áp dụng phương pháp học máy đa đặc trưng (Multi-Features) kết hợp dữ liệu nội tại (OHLCV) và chỉ số vĩ mô quốc tế (S&P 500), giúp giải quyết bài toán Hồi quy (Regression) để dự báo chính xác mức giá đóng cửa T+1.
+## Deploy
 
-## 👥 Thông Tin Sinh Viên Thực Hiện
-- **Họ và tên:** Phan Trịnh Quốc Bảo
-- **Mã số sinh viên:** 222693
-- **Lớp:** DH22TIN03
-- **Giảng viên hướng dẫn:** ThS. Trần Văn Thiện
+- Repository: https://github.com/phantrinhquocbao/Do_An_2, branch `main`.
+- Streamlit Cloud: Python 3.12, entrypoint `frontend/app.py`.
+- Dependency chính: `requirements.txt` tại root; không cần secret/API URL.
+- Chưa chạy build hoặc test local cho bản thay đổi này theo yêu cầu.
 
-## 🛠 Công Nghệ & Nền Tảng
-Hệ thống được thiết kế theo kiến trúc Client-Server hiện đại:
-- **Ngôn ngữ chính:** Python 3.10+
-- **Mô hình Trí tuệ nhân tạo (AI):** TensorFlow / Keras (LSTM)
-- **Backend (API Server):** FastAPI, Uvicorn
-- **Frontend (Giao diện người dùng):** Streamlit, Plotly (Vẽ biểu đồ nến tương tác)
-- **Xử lý Dữ liệu:** Pandas, NumPy, Scikit-learn, Vnstock, yfinance, Joblib
+## Cấu trúc
 
----
+- `frontend/app.py`: giao diện, cache dữ liệu/model, hiển thị lỗi bằng `st.error`.
+- `backend/inference.py`: tải dữ liệu và suy luận dùng chung, không khởi chạy server.
+- `backend/lstm_vn30_model.h5`, `backend/scaler.pkl`: model và scaler gốc.
+- `backend/api.py`: API tùy chọn cho local, `/health`, `/predict/{ticker}`, `/update`.
+- `backend/cap_nhat_model.py`: fine-tune thủ công; Streamlit không gọi chức năng này.
+- `huggingface_space/frontend/app.py`: chuyển tiếp tới giao diện chính trong repo đầy đủ.
 
-## 🧠 Giải Thích Các Thành Phần Cốt Lõi
+## Hợp đồng dữ liệu
 
-### 1. File `scaler.pkl` (Bộ Chuẩn Hóa Dữ Liệu)
-Đóng vai trò hạt nhân trong 파이프라인 (Pipeline) tiền xử lý và hậu xử lý dữ liệu:
-- **Chuẩn hóa (Min-Max Scaling):** Nén 6 đặc trưng có biên độ chênh lệch cực lớn (Giá, Khối lượng, S&P 500) về cùng một hệ quy chiếu [0, 1]. Điều này giúp mạng LSTM hội tụ nhanh hơn và tránh hiện tượng triệt tiêu đạo hàm.
-- **Dịch ngược (Inverse Transform):** Sau khi LSTM trả về kết quả dự báo ở dạng [0, 1], bộ scaler sẽ dịch ngược con số này về lại mức giá thực tế (VNĐ) để hiển thị trên giao diện.
+Mã VN không có hậu tố được thêm `.HM` (ví dụ `FPT.HM`); S&P 500 dùng `^GSPC`.
+Tải `Open, High, Low, Close, Volume`; ghép ngày giao dịch chung với S&P 500.
+Input model giữ đúng 60 phiên x 6 cột theo thứ tự:
+`Open_VN, High_VN, Low_VN, Close_VN, Volume_VN, Close_US`.
+Scaler gốc được fit trên NumPy array; code giữ đúng thứ tự và kiểm tra số đặc trưng.
+Giá VN dùng `auto_adjust=False`; S&P 500 giữ chuỗi Close điều chỉnh như pipeline cũ.
+Model được nạp bằng Keras với `compile=False`; scaler bằng joblib, đường dẫn tính từ source.
 
-### 2. File `lstm_vn30_model.h5` (Mô hình AI)
-Đây là "bộ não" của hệ thống, được thiết lập với kiến trúc 1 lớp ẩn LSTM chứa 50 đơn vị nơ-ron, kết hợp cùng lớp Dropout 0.2 để chống Overfitting. Mô hình nhận đầu vào là ma trận dữ liệu Cửa sổ trượt (Sliding Window) kích thước 60x6 (60 ngày quá khứ x 6 đặc trưng) để suy luận ra giá đóng cửa duy nhất của phiên tiếp theo.
+## Giới hạn
 
-### 3. Luồng Xử Lý Dữ Liệu (Data Flow)
-1. **Frontend:** Nhận yêu cầu mã cổ phiếu từ người dùng.
-2. **Backend:** Tự động gọi API `vnstock` và `yfinance` để trích xuất 60 phiên giao dịch gần nhất.
-3. **Tiền xử lý:** Sử dụng `scaler.pkl` để chuẩn hóa ma trận dữ liệu.
-4. **Dự báo:** Đưa khối dữ liệu qua mô hình `LSTM` để thực thi các phép toán học sâu.
-5. **Hiển thị:** Dịch ngược giá trị về VNĐ, đánh nhãn xu hướng và vẽ biểu đồ trực quan qua `Plotly`.
+- Yahoo có thể không cung cấp dữ liệu cho một số hoặc toàn bộ mã `.HM`, hoặc giới hạn lượt tải.
+  Khi lỗi, thiếu cột hoặc thiếu 60 phiên chung, giao diện báo lỗi và không tạo dự báo giả.
+  Giá VN phải có metadata currency=VND; không dùng mã trùng tên ở thị trường khác.
+- Đổi nhà cung cấp không đảm bảo giá điều chỉnh/đơn vị trùng dữ liệu huấn luyện cũ;
+  chưa xác minh độ chính xác sau migration. Model gốc được train trên HPG.
+- Scaler được lưu với scikit-learn 1.6.1, model với Keras 3.10.0.
+  Dependency không ghim phiên bản theo yêu cầu; tương thích serialization trên Cloud chưa được xác nhận.
+- TensorFlow cần RAM và có thời gian cold start; cache model giúp tránh nạp lại mỗi thao tác.
+- Lịch sử chỉ chứa dự báo thực trong phiên hiện tại, tối đa 100 bản ghi, không bịa MAPE.
+- Notebook đã đổi nguồn dữ liệu; output cũ được giữ và đánh dấu chưa chạy lại.
 
----
-
-## 🚀 Hướng Dẫn Cài Đặt & Khởi Chạy
-
-### Bước 1: Tải dự án
-1. Clone dự án về máy tính hoặc tải file Zip và giải nén.
-2. Mở Terminal tại thư mục gốc của dự án.
-## Chạy nhanh
+## Chạy thủ công (tùy chọn)
 
 ```bash
-git clone https://github.com/phantrinhquocbao/Do_An_2.git
-cd Do_An_2
-docker compose up --build
-
-
-### Bước 2: Chạy bằng 1 lệnh
-Bạn có thể chọn một trong bốn cách sau:
-
-Cách 1 (Online - Không cần cài đặt): Mở trình duyệt và truy cập:
-
-`https://quocbao1308-do-an-2.hf.space/`
-
-Cách 2 (Windows local - 1 lệnh): Chạy file batch sau. Script sẽ tự tạo `.venv`, cài thư viện và khởi động hệ thống:
-
-```bat
-CHAY_DO_AN.bat
+python -m pip install -r requirements.txt
+python -m streamlit run frontend/app.py
 ```
 
-Cách 3 (Python local - 1 lệnh): Nếu máy đã có Python, dùng:
+Backend tùy chọn: `python -m uvicorn backend.api:app --host 0.0.0.0 --port 8000`.
+Fine-tune thủ công: `python -m backend.cap_nhat_model` (ghi lại model, khởi động lại app sau đó).
 
-```bash
-python run_do_an.py
-```
-
-Cách 4 (Docker - 1 lệnh): Nếu máy đã có Docker Desktop:
-
-```bash
-docker compose up --build
-```
-
-Frontend sẽ mở tại `http://localhost:8501`, backend tại `http://localhost:8000`.
-
-### Bước 3: Chạy thủ công nếu cần
-1. Tạo môi trường ảo:
-   ```bash
-   python -m venv .venv
-   .\.venv\Scripts\activate
-   ```
-2. Cài thư viện:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Chạy hệ thống:
-   ```bash
-   python run_do_an.py
-   ```
-
-### Bước 4: Trải nghiệm và Sử dụng ứng dụng
-Sau khi ứng dụng khởi chạy thành công, trình duyệt sẽ tự động điều hướng tới http://localhost:8501. Người dùng có thể trải nghiệm 5 phân hệ chức năng:
-
-Tổng quan thị trường: Theo dõi biểu đồ nến Candlestick tương tác.
-
-Dự báo AI: Kích hoạt mô hình LSTM để nhận mức giá mục tiêu T+1.
-
-Phân tích chu kỳ: Xem thống kê tính mùa vụ và các tháng sinh lời tốt nhất trong 5 năm.
-
-So sánh cổ phiếu: Đối chiếu hiệu suất tăng trưởng giữa các mã VN30 (Base 100).
-
-Lịch sử dự báo: Xem nhật ký đối soát và sai số MAPE thực tế của hệ thống.
-
-### 📂 Cấu Trúc Thư Mục
-```text
-DO_AN_2/
-├── backend/                  # Phía Máy chủ (Xử lý API và AI)
-│   ├── api.py                # Điểm đầu vào FastAPI
-│   ├── lstm_vn30_model.h5    # Trọng số mạng nơ-ron LSTM
-│   └── scaler.pkl            # Bộ tham số chuẩn hóa MinMaxScaler
-├── frontend/                 # Phía Máy khách (Giao diện)
-│   └── app.py                # Script điều khiển Streamlit & Plotly
-├── .venv/                    # Môi trường ảo (bỏ qua trên Git)
-├── .gitignore                # File cấu hình Git
-├── CHAY_DO_AN.bat            # Batch script khởi động nhanh trên Windows
-├── Dockerfile                # Đóng gói chạy bằng Docker
-├── docker-compose.yml        # Chạy toàn hệ thống bằng một lệnh Docker
-├── requirements.txt          # Danh sách thư viện Python
-├── run_do_an.py              # Launcher chạy backend + frontend
-└── README.md                 # Tài liệu hướng dẫn dự án
-```
+Tham khảo API dữ liệu: https://ranaroussi.github.io/yfinance/reference/api/yfinance.download.html

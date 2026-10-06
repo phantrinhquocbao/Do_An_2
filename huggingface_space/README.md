@@ -1,22 +1,8 @@
----
-title: VN30 LSTM Forecast
-emoji: 📈
-colorFrom: blue
-colorTo: green
-sdk: docker
-app_port: 7860
-pinned: false
----
+# Legacy entrypoint
 
-# He thong du bao gia co phieu VN30 bang AI
+Deploy Streamlit Community Cloud from the full repository, Python 3.12,
+using `frontend/app.py` at repository root. See `../README.md`.
 
-Space nay chay giao dien Streamlit goc tu project `DO_AN_2` de giu nguyen bo cuc va trai nghiem hien tai.
-
-- Giao dien chinh: `frontend/app.py`
-- Tai lieu project goc: `PROJECT_README.md`
-- Day la goi deploy Space toi gian, tap trung vao dung giao dien va hanh vi cua app Streamlit hien tai
-
-Luu y:
-
-- Du lieu thi truong duoc tai dong tu Yahoo Finance khi Space chay.
-- Neu nguon du lieu ben ngoai cham hoac gian doan, mot so khung thong tin co the hien thi cham tuong tu luc chay local co mang.
+This folder's frontend forwards to the canonical app. It is not a standalone
+Hugging Face deployment: the root backend/model files and requirements are required.
+The historical Dockerfile in this folder is not used by Streamlit Cloud.

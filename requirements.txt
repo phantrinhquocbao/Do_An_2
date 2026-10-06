@@ -2,11 +2,11 @@ fastapi
 uvicorn
 streamlit
 plotly
-git+https://github.com/thinh-vu/vnstock.git
 yfinance
 pandas
 numpy
-scikit-learn==1.6.1
+scikit-learn
 tensorflow
+keras
 joblib
 requests

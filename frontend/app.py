@@ -1,16 +1,53 @@
 import streamlit as st
-import requests
-import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
-import numpy as np
-from datetime import datetime
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 # ==========================================
 # 1. CẤU HÌNH TRANG & CSS (LIGHT THEME - NHƯ ẢNH)
 # ==========================================
 st.set_page_config(page_title="Hệ thống dự báo VN30", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
+
+try:
+    from backend.inference import load_data, load_features, load_artifacts, predict_price
+except Exception as e:
+    st.error(str(e))
+    st.stop()
+
+
+@st.cache_resource
+def get_model_and_scaler():
+    return load_artifacts()
+
+
+@st.cache_data(ttl=3600)
+def cached_stock_data(ticker, start_date, end_date):
+    return load_data(ticker, start_date, end_date)
+
+
+@st.cache_data(ttl=3600)
+def cached_features(ticker, start_date, end_date):
+    return load_features(ticker, start_date, end_date)
+
+
+def get_stock_data(ticker, period="6mo"):
+    try:
+        end = pd.Timestamp.now(tz="Asia/Ho_Chi_Minh").normalize().tz_localize(None)
+        offset = {"6mo": pd.DateOffset(months=6), "1y": pd.DateOffset(years=1),
+                  "5y": pd.DateOffset(years=5)}[period]
+        start = end - offset
+        return cached_stock_data(ticker, str(start.date()), str(end.date()))
+    except Exception as e:
+        st.error(str(e))
+        return pd.DataFrame()
+
+
 
 # Tùy chỉnh CSS để làm các thẻ Metric giống y hệt trong ảnh (khung trắng, viền nhạt, bo góc)
 st.markdown("""
@@ -44,12 +81,15 @@ st.markdown("""
 if 'pred_p' not in st.session_state:
     st.session_state.pred_p = None
 
+if 'prediction_history' not in st.session_state:
+    st.session_state.prediction_history = []
+
 # Danh sách VN30 kèm tên đầy đủ để hiển thị đẹp như ảnh
 vn30_dict = {
-    "ACB": "Ngân hàng TMCP Á Châu", "BID": "BIDV", "CTG": "VietinBank", "FPT": "FPT Group", 
-    "GAS": "PV GAS", "HPG": "Tập đoàn Hòa Phát", "MBB": "MBBank", "MSN": "Tập đoàn Masan", 
-    "MWG": "Thế Giới Di Động", "SSI": "Chứng khoán SSI", "STB": "Sacombank", 
-    "TCB": "Techcombank", "VCB": "Vietcombank", "VHM": "Vinhomes", 
+    "ACB": "Ngân hàng TMCP Á Châu", "BID": "BIDV", "CTG": "VietinBank", "FPT": "FPT Group",
+    "GAS": "PV GAS", "HPG": "Tập đoàn Hòa Phát", "MBB": "MBBank", "MSN": "Tập đoàn Masan",
+    "MWG": "Thế Giới Di Động", "SSI": "Chứng khoán SSI", "STB": "Sacombank",
+    "TCB": "Techcombank", "VCB": "Vietcombank", "VHM": "Vinhomes",
     "VIC": "Tập đoàn Vingroup", "VNM": "Vinamilk", "VPB": "VPBank"
 }
 
@@ -59,21 +99,21 @@ vn30_dict = {
 with st.sidebar:
     # Avatar giả lập
     st.markdown("<h1 style='text-align: center; font-size: 50px;'>🧑‍💼</h1>", unsafe_allow_html=True)
-    
+
     st.markdown("### 📌 Menu Chức Năng")
     st.caption("Chọn trang hiển thị:")
     menu = st.selectbox("Menu", [
-        "📈 Tổng quan thị trường", 
+        "📈 Tổng quan thị trường",
         "🤖 Dự Báo Với AI (LSTM)",
         "📊 Phân tích chu kỳ",
         "⚖️ So sánh cổ phiếu",
         "📜 Lịch sử dự báo"
     ], label_visibility="collapsed")
-    
+
     st.write("---")
     st.markdown("### 🔍 Tra cứu mã VN30")
     st.caption("Chọn mã cổ phiếu:")
-    
+
     # Format hiển thị selectbox: "ACB (Ngân hàng TMCP Á Châu)"
     options = [f"{k} ({v})" for k, v in vn30_dict.items()]
     selected_option = st.selectbox("Ticker", options, label_visibility="collapsed")
@@ -86,36 +126,30 @@ with st.sidebar:
         st.session_state.current_ticker = ticker_symbol
 
     st.write("---")
-    
+
     # Khối thông tin sinh viên
     st.info("👨‍💻 **Thực hiện:** Phan Trịnh Quốc Bảo\n\n📘 **Đề tài:** Dự báo VN30 ứng dụng LSTM Multi-Features")
-    
+
     # --- ĐỂ NÚT CẬP NHẬT Ở DƯỚI CÙNG CHO ĐẸP ---
     st.markdown("### ⚙️ Quản trị hệ thống")
-    if st.button("🔄 Cập nhật dữ liệu AI", use_container_width=True):
-        import time
-        with st.spinner("Đang đồng bộ dữ liệu mới nhất..."):
-            time.sleep(2) # Giả lập thời gian cào dữ liệu mất 2 giây
-            st.sidebar.success("✅ Cập nhật dữ liệu thành công!")
-            
+    if st.button("🔄 Tải lại dữ liệu thị trường", use_container_width=True):
+        cached_stock_data.clear()
+        cached_features.clear()
+        st.session_state.pred_p = None
+        st.rerun()
+
     st.markdown("### 💡 Giải thuật")
     st.caption("Mô hình LSTM được huấn luyện trên 6 tham số: Open, High, Low, Close, Volume (VN) và Close (S&P 500) để tăng độ chính xác vĩ mô.")
 # ==========================================
 # 4. LOGIC LẤY DỮ LIỆU
 # ==========================================
-@st.cache_data(ttl=3600)
-def get_stock_data(ticker, period="6mo"):
-    stock = yf.Ticker(f"{ticker}.VN")
-    df = stock.history(period=period)
-    return df
-
 df = get_stock_data(ticker_symbol)
 
 # ==========================================
 # 5. HIỂN THỊ CÁC TRANG THEO MENU
 # ==========================================
 
-if not df.empty:
+if len(df) >= 2:
     current_p = df['Close'].iloc[-1]
     prev_p = df['Close'].iloc[-2]
 
@@ -126,7 +160,7 @@ if not df.empty:
         st.header(f"📊 Phân Tích Kỹ Thuật: {ticker_symbol} ({ticker_name})")
         st.caption("Tổng quan dữ liệu lịch sử và biến động giá thị trường hiện tại.")
         st.write("") # Tạo khoảng trống
-        
+
         # 4 Cột Metrics
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Giá Hiện Tại", f"{current_p:,.0f} VNĐ", f"{(current_p - prev_p):+,.0f} ({((current_p-prev_p)/prev_p*100):+.2f}%)")
@@ -136,7 +170,7 @@ if not df.empty:
 
         st.write("---")
         st.subheader("Biểu Đồ Nến (Candlestick) - 6 Tháng Gần Nhất")
-        
+
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.8, 0.2])
         # Nến
         fig.add_trace(go.Candlestick(
@@ -160,7 +194,7 @@ if not df.empty:
     elif menu == "🤖 Dự Báo Với AI (LSTM)":
         st.header(f"🤖 Kích Hoạt AI Dự Báo: {ticker_symbol}")
         st.caption("Sử dụng mạng nơ-ron LSTM để suy luận giá đóng cửa cho phiên giao dịch kế tiếp.")
-        
+
         col_chart, col_order = st.columns([3, 1])
 
         with col_order:
@@ -169,21 +203,31 @@ if not df.empty:
             btn_predict = st.button("🚀 CHẠY MÔ HÌNH DỰ BÁO", type="primary", use_container_width=True)
 
             if btn_predict:
-                import time
-                import random
-                with st.spinner("AI đang tính toán ma trận 60 phiên..."):
-                    time.sleep(1.5) # Giả lập thời gian AI chạy mất 1.5 giây
-                    
-                    # Giả lập AI dự báo: giá sẽ dao động ngẫu nhiên từ -2% đến +2% so với giá hiện tại
-                    mock_change = random.uniform(-0.02, 0.02)
-                    predicted_price = current_p * (1 + mock_change)
-                    
-                    # Lưu vào bộ nhớ và load lại trang
-                    st.session_state.pred_p = predicted_price
-                    st.rerun()
+                st.session_state.pred_p = None
+                try:
+                    with st.spinner("Đang tải dữ liệu, model và tính toán 60 phiên..."):
+                        end = pd.Timestamp.now(tz="Asia/Ho_Chi_Minh").normalize().tz_localize(None)
+                        start = end - pd.Timedelta(days=365)
+                        features = cached_features(ticker_symbol, str(start.date()), str(end.date()))
+                        if features.index[-1] != df.index[-1]:
+                            raise ValueError("S&P 500 và mã VN chưa có dữ liệu cùng phiên gần nhất; chưa thể dự báo T+1.")
+                        model, scaler = get_model_and_scaler()
+                        predicted_price = predict_price(features, model, scaler)
+                        st.session_state.pred_p = predicted_price
+                        st.session_state.pred_date = features.index[-1]
+                        st.session_state.prediction_history.append({
+                            "Thời gian truy vấn": pd.Timestamp.now(tz="Asia/Ho_Chi_Minh").isoformat(),
+                            "Mã CK": ticker_symbol,
+                            "Phiên dữ liệu cuối": str(features.index[-1].date()),
+                            "Giá AI dự báo (VNĐ)": predicted_price,
+                        })
+                        st.session_state.prediction_history = st.session_state.prediction_history[-100:]
+                except Exception as e:
+                    st.error(str(e))
 
             if st.session_state.pred_p:
                 p_val = st.session_state.pred_p
+                st.caption(f"Phiên dữ liệu cuối: {st.session_state.pred_date.date()}")
                 # ... (phần dưới này ông giữ nguyên)
                 p_diff = p_val - current_p
                 st.write("---")
@@ -196,9 +240,9 @@ if not df.empty:
         with col_chart:
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=df.index, y=df['Close'], mode='lines', name="Giá Thực Tế", line=dict(color='#2962FF', width=2)))
-            
+
             if st.session_state.pred_p:
-                next_date = df.index[-1] + pd.Timedelta(days=1)
+                next_date = st.session_state.pred_date + pd.offsets.BDay(1)
                 fig.add_trace(go.Scatter(
                     x=[next_date], y=[st.session_state.pred_p], mode='markers+text',
                     marker=dict(color='#FF9800', size=15, symbol='star'),
@@ -218,61 +262,64 @@ if not df.empty:
     elif menu == "📊 Phân tích chu kỳ":
         st.header(f"📊 Lịch Sử Tăng/Giảm Theo Tháng: {ticker_symbol}")
         st.caption("Thống kê xem trong quá khứ, cổ phiếu này thường tăng hay giảm vào những tháng nào trong năm, giúp bạn chọn thời điểm mua/bán tốt nhất.")
-        
+
         # Lấy dữ liệu 5 năm để có cái nhìn tổng quan đủ dài
         df_long = get_stock_data(ticker_symbol, period="5y")
-        
+
         if not df_long.empty:
             try:
                 # Tính lợi nhuận từng tháng
                 monthly_data = df_long['Close'].resample('ME').last()
             except:
                 monthly_data = df_long['Close'].resample('M').last()
-                
+
             monthly_returns = monthly_data.pct_change() * 100
             monthly_returns = monthly_returns.dropna()
-            
+            if monthly_returns.empty:
+                st.error("Chưa đủ dữ liệu tháng để phân tích chu kỳ.")
+                st.stop()
+
             # Tạo DataFrame gom nhóm theo 12 tháng (1 -> 12)
             df_analysis = pd.DataFrame({'Return': monthly_returns})
             df_analysis['Month'] = df_analysis.index.month
-            
+
             # Tính trung bình mức tăng/giảm của từng tháng trong 5 năm qua
             monthly_avg = df_analysis.groupby('Month')['Return'].mean()
-            
+
             # Đổi tên tháng cho dễ đọc
-            month_names = [f"Tháng {i}" for i in range(1, 13)]
-            
+            month_names = [f"Tháng {i}" for i in monthly_avg.index]
+
             # Tìm tháng tốt nhất và tệ nhất để in ra kết luận
             best_month = monthly_avg.idxmax()
             worst_month = monthly_avg.idxmin()
-            
+
             # --- KHU VỰC KẾT LUẬN TỰ ĐỘNG (Dành cho người không rành xem biểu đồ) ---
             st.info(f"💡 **AI Tổng hợp nhanh (Dữ liệu 5 năm qua):**\n\n"
                     f"- 🌟 **Tháng tốt nhất để mua:** **Tháng {best_month}** (Trung bình tăng trưởng cao nhất: **{monthly_avg[best_month]:+.2f}%**).\n"
                     f"- ⚠️ **Tháng nên cẩn trọng:** **Tháng {worst_month}** (Thường có xu hướng giảm: **{monthly_avg[worst_month]:+.2f}%**).")
-            
+
             st.write("---")
-            
+
             # --- VẼ BIỂU ĐỒ CỘT SIÊU DỄ NHÌN ---
             st.subheader("Biểu đồ hiệu suất trung bình 12 tháng")
-            
+
             fig_bar = go.Figure(go.Bar(
-                x=month_names, 
+                x=month_names,
                 y=monthly_avg.values,
                 text=[f"{val:+.1f}%" for val in monthly_avg.values],
                 textposition='auto',
                 marker_color=['#089981' if val > 0 else '#F23645' for val in monthly_avg.values]
             ))
-            
+
             fig_bar.update_layout(
-                template="plotly_white", 
+                template="plotly_white",
                 height=450,
                 xaxis_title="Các tháng trong năm",
                 yaxis_title="Mức tăng/giảm trung bình (%)",
                 margin=dict(l=0, r=0, t=30, b=0)
             )
             st.plotly_chart(fig_bar, use_container_width=True)
-            
+
             st.markdown("*Lưu ý: Thống kê dựa trên dữ liệu quá khứ, mang tính chất tham khảo cho tính chu kỳ (seasonality) của thị trường.*")
 
     # ------------------------------------------
@@ -281,9 +328,9 @@ if not df.empty:
     elif menu == "⚖️ So sánh cổ phiếu":
         st.header("⚖️ So Sánh Tương Quan Hiệu Suất")
         st.caption("Đưa các mã chứng khoán về cùng hệ quy chiếu (Base 100) để đánh giá sức mạnh tương đối.")
-        
-        selected_tickers = st.multiselect("Chọn các mã VN30 để so sánh:", list(vn30_dict.keys()), default=[ticker_symbol, "FPT", "HPG"])
-        
+
+        selected_tickers = st.multiselect("Chọn các mã VN30 để so sánh:", list(vn30_dict.keys()), default=list(dict.fromkeys([ticker_symbol, "FPT", "HPG"])))
+
         if selected_tickers:
             fig_comp = go.Figure()
             for t in selected_tickers:
@@ -291,7 +338,7 @@ if not df.empty:
                 if not data.empty:
                     normalized_price = (data['Close'] / data['Close'].iloc[0]) * 100
                     fig_comp.add_trace(go.Scatter(x=normalized_price.index, y=normalized_price, mode='lines', name=t))
-                
+
             fig_comp.update_layout(template="plotly_white", height=500, yaxis_title="Điểm hiệu suất (Base 100)")
             st.plotly_chart(fig_comp, use_container_width=True)
 
@@ -300,17 +347,11 @@ if not df.empty:
     # ------------------------------------------
     elif menu == "📜 Lịch sử dự báo":
         st.header("📜 Nhật Ký Đối Soát Hệ Thống")
-        st.caption("Dữ liệu lưu trữ các lần dự báo của AI và đối soát với giá thực tế của thị trường.")
-        
-        history_data = {
-            "Thời gian truy vấn": ["2026-03-18 14:30", "2026-03-19 09:15", "2026-03-20 10:00"],
-            "Mã CK": ["FPT", "HPG", ticker_symbol],
-            "Giá AI Dự báo": ["120,500 VNĐ", "28,400 VNĐ", "45,200 VNĐ"],
-            "Giá Thực tế": ["121,000 VNĐ", "28,100 VNĐ", "Chờ chốt phiên..."],
-            "Sai số (MAPE)": ["0.41%", "1.05%", "---"],
-            "Trạng thái": ["✅ Đạt yêu cầu", "✅ Đạt yêu cầu", "⏳ Đang đợi"]
-        }
-        st.dataframe(pd.DataFrame(history_data), use_container_width=True)
+        st.caption("Tối đa 100 dự báo thực trong phiên hiện tại; chưa đối soát giá tương lai.")
+        if st.session_state.prediction_history:
+            st.dataframe(pd.DataFrame(st.session_state.prediction_history), use_container_width=True)
+        else:
+            st.info("Chưa có dự báo trong phiên này.")
 
 else:
-    st.error("Không thể tải dữ liệu từ Yahoo Finance. Vui lòng kiểm tra kết nối mạng!")
+    st.error("Cần ít nhất hai phiên dữ liệu hợp lệ từ Yahoo Finance để hiển thị mã này.")
