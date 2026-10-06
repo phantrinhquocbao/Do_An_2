@@ -2,7 +2,7 @@ fastapi
 uvicorn
 streamlit
 plotly
-vnstock
+git+https://github.com/thinh-vu/vnstock.git
 yfinance
 pandas
 numpy
