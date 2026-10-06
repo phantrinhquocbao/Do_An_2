@@ -7,6 +7,7 @@ except Exception as e:
     st.error(str(e))
     st.stop()
 from pathlib import Path
+import random
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -217,13 +218,27 @@ def main():
                                 raise ValueError("S&P 500 và mã VN chưa có dữ liệu cùng phiên gần nhất; chưa thể dự báo T+1.")
                             model, scaler = get_model_and_scaler()
                             predicted_price = predict_price(features, model, scaler)
-                            st.session_state.pred_p = predicted_price
+                            last_close = float(df["Close"].iloc[-1])
+                            adjusted = abs(predicted_price - last_close) > last_close * 0.04
+                            # Presentation only: keep the raw model output for comparison.
+                            # Draw once per prediction, never again on a Streamlit rerun.
+                            display_price = (
+                                last_close * (1 + random.uniform(-0.02, 0.02))
+                                if adjusted else predicted_price
+                            )
+                            st.session_state.pred_p = display_price
+                            st.session_state.pred_raw = predicted_price
+                            st.session_state.pred_reference = last_close
+                            st.session_state.pred_adjusted = adjusted
                             st.session_state.pred_date = features.index[-1]
                             st.session_state.prediction_history.append({
                                 "Thời gian truy vấn": pd.Timestamp.now(tz="Asia/Ho_Chi_Minh").isoformat(),
                                 "Mã CK": ticker_symbol,
                                 "Phiên dữ liệu cuối": str(features.index[-1].date()),
                                 "Giá AI dự báo (VNĐ)": predicted_price,
+                                "Close tham chiếu (VNĐ)": last_close,
+                                "Giá hiển thị (VNĐ)": display_price,
+                                "Chế độ hiển thị": "Demo ngẫu nhiên ±2%" if adjusted else "Dự báo gốc",
                             })
                             st.session_state.prediction_history = st.session_state.prediction_history[-100:]
                     except Exception as e:
@@ -231,12 +246,18 @@ def main():
 
                 if st.session_state.pred_p:
                     p_val = st.session_state.pred_p
+                    reference_price = st.session_state.get("pred_reference", current_p)
+                    is_demo = st.session_state.get("pred_adjusted", False)
                     st.caption(f"Phiên dữ liệu cuối: {st.session_state.pred_date.date()}")
-                    # ... (phần dưới này ông giữ nguyên)
-                    p_diff = p_val - current_p
+                    if is_demo:
+                        st.info("Giá demo: dự báo gốc lệch quá 4%; giá hiển thị được chọn ngẫu nhiên trong ±2% của Close cuối cùng.")
+                        st.caption(f"Dự báo LSTM gốc: {st.session_state.pred_raw:,.0f} VNĐ")
+                    p_diff = p_val - reference_price
                     st.write("---")
-                    st.metric("Giá mục tiêu T+1", f"{p_val:,.0f} VNĐ", f"{p_diff:+,.0f} ({(p_diff/current_p*100):+.2f}%)")
-                    if p_diff > 0:
+                    st.metric("Giá demo T+1" if is_demo else "Giá mục tiêu T+1", f"{p_val:,.0f} VNĐ", f"{p_diff:+,.0f} ({(p_diff/reference_price*100):+.2f}%)")
+                    if is_demo:
+                        st.caption(f"Lãi/lỗ minh họa theo giá demo: {(p_diff * amount):+,.0f} VNĐ")
+                    elif p_diff > 0:
                         st.success(f"Dự tính lợi nhuận: +{(p_diff * amount):,.0f} VNĐ")
                     else:
                         st.error(f"Dự tính rủi ro: {(p_diff * amount):,.0f} VNĐ")
@@ -250,10 +271,12 @@ def main():
                     fig.add_trace(go.Scatter(
                         x=[next_date], y=[st.session_state.pred_p], mode='markers+text',
                         marker=dict(color='#FF9800', size=15, symbol='star'),
-                        name='Dự báo T+1', text=[f"{st.session_state.pred_p:,.0f}"], textposition="top center"
+                        name='Giá demo T+1' if st.session_state.get("pred_adjusted", False) else 'Dự báo T+1',
+                        text=[f"{st.session_state.pred_p:,.0f}"], textposition="top center"
                     ))
                     fig.add_trace(go.Scatter(
-                        x=[df.index[-1], next_date], y=[current_p, st.session_state.pred_p],
+                        x=[st.session_state.pred_date, next_date],
+                        y=[st.session_state.get("pred_reference", current_p), st.session_state.pred_p],
                         mode='lines', line=dict(color='#FF9800', width=2, dash='dash'), showlegend=False
                     ))
 
@@ -351,7 +374,7 @@ def main():
         # ------------------------------------------
         elif menu == "📜 Lịch sử dự báo":
             st.header("📜 Nhật Ký Đối Soát Hệ Thống")
-            st.caption("Tối đa 100 dự báo thực trong phiên hiện tại; chưa đối soát giá tương lai.")
+            st.caption("Tối đa 100 lần dự báo trong phiên: lưu riêng giá LSTM gốc và giá demo nếu có; chưa đối soát giá tương lai.")
             if st.session_state.prediction_history:
                 st.dataframe(pd.DataFrame(st.session_state.prediction_history), use_container_width=True)
             else:
